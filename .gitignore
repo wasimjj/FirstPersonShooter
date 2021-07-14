@@ -67,10 +67,16 @@ Build/*/**
 Saved/*
 
 # Compiled source files for the engine to use
+*/Intermediate/*
+*/Binaries/*
 Intermediate/*
+Binaries/*
+*/.idea/*
 Plugins/*/Intermediate/*
 
 # Cache files for the editor to use
+*/DerivedDataCache/*
+*/Saved/*
 DerivedDataCache/*
 .DS_Store
 .plastic
