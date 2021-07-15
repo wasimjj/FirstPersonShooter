@@ -3,6 +3,7 @@
 #include "TaskProjectile.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Components/SphereComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 ACTFTaskProjectile::ACTFTaskProjectile() 
 {
@@ -10,8 +11,11 @@ ACTFTaskProjectile::ACTFTaskProjectile()
 	CollisionComp = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComp"));
 	CollisionComp->InitSphereRadius(5.0f);
 	CollisionComp->BodyInstance.SetCollisionProfileName("Projectile");
-	CollisionComp->OnComponentHit.AddDynamic(this, &ACTFTaskProjectile::OnHit);		// set up a notification for when this component hits something blocking
-
+	//Registering hit event on the server only .
+	//if (GetLocalRole() == ROLE_Authority)
+	{
+		CollisionComp->OnComponentHit.AddDynamic(this, &ACTFTaskProjectile::OnHit);		// set up a notification for when this component hits something blocking
+	}
 	// Players can't walk on it
 	CollisionComp->SetWalkableSlopeOverride(FWalkableSlopeOverride(WalkableSlope_Unwalkable, 0.f));
 	CollisionComp->CanCharacterStepUpOn = ECB_No;
@@ -29,6 +33,8 @@ ACTFTaskProjectile::ACTFTaskProjectile()
 
 	// Die after 3 seconds by default
 	InitialLifeSpan = 3.0f;
+	DamageType = UDamageType::StaticClass();
+	DamageValue = 20.0f;
 }
 
 void ACTFTaskProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
@@ -37,7 +43,16 @@ void ACTFTaskProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor,
 	if ((OtherActor != NULL) && (OtherActor != this) && (OtherComp != NULL) && OtherComp->IsSimulatingPhysics())
 	{
 		OtherComp->AddImpulseAtLocation(GetVelocity() * 100.0f, GetActorLocation());
+		if(APawn* Pawn = GetInstigator())
+		{
+			UGameplayStatics::ApplyPointDamage(OtherActor, DamageValue, NormalImpulse, Hit, Pawn->Controller, this, DamageType);
 
+		}
 		Destroy();
 	}
+}
+
+
+void ACTFTaskProjectile::Destroyed()
+{
 }

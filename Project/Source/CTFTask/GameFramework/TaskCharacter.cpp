@@ -11,6 +11,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "MotionControllerComponent.h"
 #include "XRMotionControllerBase.h" // for FXRMotionControllerBase::RightHandSourceId
+#include "Net/UnrealNetwork.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
 
@@ -40,10 +41,28 @@ ACTFTaskCharacter::ACTFTaskCharacter()
 	Mesh1P->CastShadow = false;
 	Mesh1P->SetRelativeRotation(FRotator(1.9f, -19.19f, 5.2f));
 	Mesh1P->SetRelativeLocation(FVector(-0.5f, -4.4f, -155.7f));
+	//Create mesh body for client
+	MeshCharacterBody = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("MeshCharacterBody"));
+	MeshCharacterBody->SetOnlyOwnerSee(false);
+	MeshCharacterBody->SetOwnerNoSee(true);
+	MeshCharacterBody->CastShadow = false;
+	MeshCharacterBody->SetupAttachment(RootComponent);
+	MeshCharacterBody->SetRelativeRotation(FRotator(0, -90.0f, 0));
+	MeshCharacterBody->SetRelativeLocation(FVector(0, 0, -90));
+
+	// Create a gun mesh component
+	ClientBodyGun = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ClientBodyGun"));
+	ClientBodyGun->SetOnlyOwnerSee(false);
+	ClientBodyGun->SetOwnerNoSee(true);
+	ClientBodyGun->bCastDynamicShadow = false;
+	ClientBodyGun->CastShadow = false;
+	ClientBodyGun->SetupAttachment(MeshCharacterBody);
+	ClientBodyGun->SetRelativeRotation(FRotator(0, 0, 0));
+	ClientBodyGun->SetRelativeLocation(FVector(0, 0, 0));
 
 	// Create a gun mesh component
 	FP_Gun = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FP_Gun"));
-	FP_Gun->SetOnlyOwnerSee(true);			// only the owning player will see this mesh
+	FP_Gun->SetOnlyOwnerSee(true); // only the owning player will see this mesh
 	FP_Gun->bCastDynamicShadow = false;
 	FP_Gun->CastShadow = false;
 	// FP_Gun->SetupAttachment(Mesh1P, TEXT("GripPoint"));
@@ -69,7 +88,7 @@ ACTFTaskCharacter::ACTFTaskCharacter()
 	// Create a gun and attach it to the right-hand VR controller.
 	// Create a gun mesh component
 	VR_Gun = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("VR_Gun"));
-	VR_Gun->SetOnlyOwnerSee(true);			// only the owning player will see this mesh
+	VR_Gun->SetOnlyOwnerSee(true); // only the owning player will see this mesh
 	VR_Gun->bCastDynamicShadow = false;
 	VR_Gun->CastShadow = false;
 	VR_Gun->SetupAttachment(R_MotionController);
@@ -78,19 +97,30 @@ ACTFTaskCharacter::ACTFTaskCharacter()
 	VR_MuzzleLocation = CreateDefaultSubobject<USceneComponent>(TEXT("VR_MuzzleLocation"));
 	VR_MuzzleLocation->SetupAttachment(VR_Gun);
 	VR_MuzzleLocation->SetRelativeLocation(FVector(0.000004, 53.999992, 10.000000));
-	VR_MuzzleLocation->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));		// Counteract the rotation of the VR gun model.
+	VR_MuzzleLocation->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f)); // Counteract the rotation of the VR gun model.
 
 	// Uncomment the following line to turn motion controllers on by default:
 	//bUsingMotionControllers = true;
+	//
+	//Initialize the player's Health
+	MaxHealth = 100.0f;
+	CurrentHealth = MaxHealth;
 }
 
 void ACTFTaskCharacter::BeginPlay()
 {
 	// Call the base class  
 	Super::BeginPlay();
-
+	if (!IsLocallyControlled()) // if remote player 
+	{
+		ClientBodyGun->AttachToComponent(MeshCharacterBody,
+		                                 FAttachmentTransformRules(EAttachmentRule::SnapToTarget, true),
+		                                 TEXT("GunSocket"));
+	}
 	//Attach gun mesh component to Skeleton, doing it here because the skeleton is not yet created in the constructor
-	FP_Gun->AttachToComponent(Mesh1P, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, true), TEXT("GripPoint"));
+	FP_Gun->AttachToComponent(Mesh1P, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, true),
+	                          TEXT("GripPoint"));
+
 
 	// Show or hide the two versions of the gun based on whether or not we're using motion controllers.
 	if (bUsingMotionControllers)
@@ -103,6 +133,24 @@ void ACTFTaskCharacter::BeginPlay()
 		VR_Gun->SetHiddenInGame(true, true);
 		Mesh1P->SetHiddenInGame(false, true);
 	}
+}
+
+void ACTFTaskCharacter::Tick(float DeltaSeconds)
+{
+	//Findloo GetActorLocation()
+}
+
+float ACTFTaskCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator,
+	AActor* DamageCauser)
+{
+	SetCurrentHealth(CurrentHealth - DamageAmount);
+	return DamageAmount;
+}
+
+void ACTFTaskCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ACTFTaskCharacter, CurrentHealth);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -150,20 +198,22 @@ void ACTFTaskCharacter::OnFire()
 			{
 				const FRotator SpawnRotation = VR_MuzzleLocation->GetComponentRotation();
 				const FVector SpawnLocation = VR_MuzzleLocation->GetComponentLocation();
-				World->SpawnActor<ACTFTaskProjectile>(ProjectileClass, SpawnLocation, SpawnRotation);
+				GetWorld()->SpawnActor<ACTFTaskProjectile>(ProjectileClass, SpawnLocation, SpawnRotation);
 			}
 			else
 			{
 				const FRotator SpawnRotation = GetControlRotation();
 				// MuzzleOffset is in camera space, so transform it to world space before offsetting from the character location to find the final muzzle position
-				const FVector SpawnLocation = ((FP_MuzzleLocation != nullptr) ? FP_MuzzleLocation->GetComponentLocation() : GetActorLocation()) + SpawnRotation.RotateVector(GunOffset);
+				const FVector SpawnLocation = ((FP_MuzzleLocation != nullptr)
+					                               ? FP_MuzzleLocation->GetComponentLocation()
+					                               : GetActorLocation()) + SpawnRotation.RotateVector(GunOffset);
 
 				//Set Spawn Collision Handling Override
-				FActorSpawnParameters ActorSpawnParams;
-				ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+				
 
 				// spawn the projectile at the muzzle
-				World->SpawnActor<ACTFTaskProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
+				OnFireServer(SpawnLocation,SpawnRotation);
+
 			}
 		}
 	}
@@ -282,6 +332,18 @@ void ACTFTaskCharacter::LookUpAtRate(float Rate)
 {
 	// calculate delta for this frame from the rate information
 	AddControllerPitchInput(Rate * BaseLookUpRate * GetWorld()->GetDeltaSeconds());
+	if (IsLocallyControlled())
+	{
+		if(GetLocalRole() == ROLE_Authority)
+		{
+			CorrectRotationMulticast(GetControlRotation());
+
+		}else
+		{
+			CorrectRotationOnServer(GetControlRotation());
+		}
+	}
+	
 }
 
 bool ACTFTaskCharacter::EnableTouchscreenMovement(class UInputComponent* PlayerInputComponent)
@@ -295,6 +357,69 @@ bool ACTFTaskCharacter::EnableTouchscreenMovement(class UInputComponent* PlayerI
 		//PlayerInputComponent->BindTouch(EInputEvent::IE_Repeat, this, &ACTFTaskCharacter::TouchUpdate);
 		return true;
 	}
-	
+
 	return false;
+}
+
+void ACTFTaskCharacter::OnFireServer_Implementation(const FVector Location , const FRotator Rotation)
+{
+	FActorSpawnParameters ActorSpawnParams;
+	ActorSpawnParams.Instigator = GetInstigator();
+	ActorSpawnParams.SpawnCollisionHandlingOverride =
+		ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+	GetWorld()->SpawnActor<ACTFTaskProjectile>(ProjectileClass, Location, Rotation, ActorSpawnParams);
+}
+
+void ACTFTaskCharacter::CorrectRotationOnServer_Implementation(FRotator Rotator)
+{
+	CharacterRotationCorrection = Rotator;
+	if (!IsLocallyControlled())
+	{
+		FirstPersonCameraComponent->SetWorldRotation(Rotator);
+	}
+	
+}
+
+void ACTFTaskCharacter::CorrectRotationMulticast_Implementation(FRotator Rotator)
+{
+	CharacterRotationCorrection = Rotator;
+	if (!IsLocallyControlled())
+	{
+		FirstPersonCameraComponent->SetWorldRotation(Rotator);
+	}
+}
+
+void ACTFTaskCharacter::OnRep_CurrentHealth()
+{
+	OnHealthUpdate();
+}
+
+void ACTFTaskCharacter::OnHealthUpdate()
+{
+	if (IsLocallyControlled())
+	{
+		const FString healthMessage = FString::Printf(TEXT("You now have %f health remaining."), CurrentHealth);
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, healthMessage);
+
+		if (CurrentHealth <= 0)
+		{
+			const FString DeathMessage = FString::Printf(TEXT("You have been killed."));
+			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, DeathMessage);
+		}
+	}
+
+	if (GetLocalRole() == ROLE_Authority)
+	{
+		const FString HealthMessage = FString::Printf(TEXT("%s now has %f health remaining."), *GetFName().ToString(), CurrentHealth);
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, HealthMessage);
+	}
+}
+
+void ACTFTaskCharacter::SetCurrentHealth(float HealthValue)
+{
+	if (GetLocalRole() == ROLE_Authority)
+	{
+		CurrentHealth = FMath::Clamp(HealthValue, 0.f, MaxHealth);
+		OnHealthUpdate();
+	}
 }

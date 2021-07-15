@@ -17,6 +17,14 @@ class ACTFTaskCharacter : public ACharacter
 	UPROPERTY(VisibleDefaultsOnly, Category=Mesh)
 	class USkeletalMeshComponent* Mesh1P;
 
+	/** Character body for others player can see*/
+	UPROPERTY(VisibleDefaultsOnly, Category=Mesh)
+	class USkeletalMeshComponent* MeshCharacterBody;
+
+	/** Gun mesh: for the mesh body to for other players*/
+	UPROPERTY(VisibleDefaultsOnly, Category = Mesh)
+	class USkeletalMeshComponent* ClientBodyGun;
+
 	/** Gun mesh: 1st person view (seen only by self) */
 	UPROPERTY(VisibleDefaultsOnly, Category = Mesh)
 	class USkeletalMeshComponent* FP_Gun;
@@ -48,9 +56,13 @@ class ACTFTaskCharacter : public ACharacter
 public:
 	ACTFTaskCharacter();
 
+
 protected:
 	virtual void BeginPlay();
-
+	virtual void Tick(float DeltaSeconds) override;
+	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator,
+	                         AActor* DamageCauser) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 public:
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Camera)
@@ -81,7 +93,6 @@ public:
 	uint32 bUsingMotionControllers : 1;
 
 protected:
-	
 	/** Fires a projectile. */
 	void OnFire();
 
@@ -108,17 +119,23 @@ protected:
 
 	struct TouchData
 	{
-		TouchData() { bIsPressed = false;Location=FVector::ZeroVector;}
+		TouchData()
+		{
+			bIsPressed = false;
+			Location = FVector::ZeroVector;
+		}
+
 		bool bIsPressed;
 		ETouchIndex::Type FingerIndex;
 		FVector Location;
 		bool bMoved;
 	};
+
 	void BeginTouch(const ETouchIndex::Type FingerIndex, const FVector Location);
 	void EndTouch(const ETouchIndex::Type FingerIndex, const FVector Location);
 	void TouchUpdate(const ETouchIndex::Type FingerIndex, const FVector Location);
-	TouchData	TouchItem;
-	
+	TouchData TouchItem;
+
 protected:
 	// APawn interface
 	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
@@ -137,6 +154,39 @@ public:
 	FORCEINLINE class USkeletalMeshComponent* GetMesh1P() const { return Mesh1P; }
 	/** Returns FirstPersonCameraComponent subobject **/
 	FORCEINLINE class UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
+public:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Rotation")
+	FRotator CharacterRotationCorrection;
 
+
+protected:
+	UFUNCTION(Server, Reliable)
+	void OnFireServer(const FVector Location, const FRotator Rotation);
+	void OnFireServer_Implementation(const FVector Location, const FRotator Rotation);
+	UFUNCTION(Server, Reliable)
+	void CorrectRotationOnServer(FRotator Rotator);
+	void CorrectRotationOnServer_Implementation(FRotator Rotator);
+	UFUNCTION(NetMulticast, Reliable)
+	void CorrectRotationMulticast(FRotator Rotator);
+	UFUNCTION(BlueprintCallable, Category="Rotation")
+	void CorrectRotationMulticast_Implementation(FRotator Rotator);
+protected:
+	UPROPERTY(EditDefaultsOnly, Category = "Health")
+	float MaxHealth;
+
+	UPROPERTY(ReplicatedUsing=OnRep_CurrentHealth)
+	float CurrentHealth;
+
+	UFUNCTION()
+	void OnRep_CurrentHealth();
+	void OnHealthUpdate();
+public:
+	UFUNCTION(BlueprintPure, Category="Health")
+	FORCEINLINE float GetMaxHealth() const { return MaxHealth; }
+
+	UFUNCTION(BlueprintPure, Category="Health")
+	FORCEINLINE float GetCurrentHealth() const { return CurrentHealth; }
+
+	UFUNCTION(BlueprintCallable, Category="Health")
+	void SetCurrentHealth(float HealthValue);
 };
-
