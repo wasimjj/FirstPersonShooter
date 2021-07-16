@@ -16,4 +16,5 @@ class CTFTASK_API ATaskGameModeGameplay : public ATaskGameMode
 
 public:
 	ATaskGameModeGameplay();
+	virtual void BeginPlay() override;
 };
