@@ -12,17 +12,17 @@ ACTFTaskProjectile::ACTFTaskProjectile()
 	CollisionComp->InitSphereRadius(5.0f);
 	CollisionComp->BodyInstance.SetCollisionProfileName("Projectile");
 	//Registering hit event on the server only .
-	//if (GetLocalRole() == ROLE_Authority)
-	{
-		CollisionComp->OnComponentHit.AddDynamic(this, &ACTFTaskProjectile::OnHit);		// set up a notification for when this component hits something blocking
-	}
+	
 	// Players can't walk on it
 	CollisionComp->SetWalkableSlopeOverride(FWalkableSlopeOverride(WalkableSlope_Unwalkable, 0.f));
 	CollisionComp->CanCharacterStepUpOn = ECB_No;
 
 	// Set as root component
 	RootComponent = CollisionComp;
-
+	//if (GetLocalRole() == ROLE_Authority)
+	//{
+	CollisionComp->OnComponentHit.AddDynamic(this, &ACTFTaskProjectile::OnHit);		// set up a notification for when this component hits something blocking
+	//}
 	// Use a ProjectileMovementComponent to govern this projectile's movement
 	ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileComp"));
 	ProjectileMovement->UpdatedComponent = CollisionComp;
@@ -40,11 +40,13 @@ ACTFTaskProjectile::ACTFTaskProjectile()
 void ACTFTaskProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
 	// Only add impulse and destroy projectile if we hit a physics
-	if ((OtherActor != NULL) && (OtherActor != this) && (OtherComp != NULL) && OtherComp->IsSimulatingPhysics())
+	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, "OnHit from c++  && OtherComp->IsSimulatingPhysics()");
+	if ((OtherActor != NULL) && (OtherActor != this) && (OtherComp != NULL) )
 	{
 		OtherComp->AddImpulseAtLocation(GetVelocity() * 100.0f, GetActorLocation());
 		if(APawn* Pawn = GetInstigator())
 		{
+			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, "OnHit from c++");
 			UGameplayStatics::ApplyPointDamage(OtherActor, DamageValue, NormalImpulse, Hit, Pawn->Controller, this, DamageType);
 
 		}

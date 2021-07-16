@@ -143,6 +143,7 @@ void ACTFTaskCharacter::Tick(float DeltaSeconds)
 float ACTFTaskCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator,
 	AActor* DamageCauser)
 {
+	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, "TakeDamage from c++");
 	SetCurrentHealth(CurrentHealth - DamageAmount);
 	return DamageAmount;
 }
@@ -208,10 +209,6 @@ void ACTFTaskCharacter::OnFire()
 					                               ? FP_MuzzleLocation->GetComponentLocation()
 					                               : GetActorLocation()) + SpawnRotation.RotateVector(GunOffset);
 
-				//Set Spawn Collision Handling Override
-				
-
-				// spawn the projectile at the muzzle
 				OnFireServer(SpawnLocation,SpawnRotation);
 
 			}
