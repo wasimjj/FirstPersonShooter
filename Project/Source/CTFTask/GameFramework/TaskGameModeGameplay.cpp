@@ -4,6 +4,7 @@
 #include "TaskGameModeGameplay.h"
 #include "TaskHUD.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
+#include "Kismet/GameplayStatics.h"
 
 ATaskGameModeGameplay::ATaskGameModeGameplay() 
 {
@@ -13,6 +14,7 @@ ATaskGameModeGameplay::ATaskGameModeGameplay()
 
 void ATaskGameModeGameplay::BeginPlay()
 {
+	
 	GetWorld()->GetFirstPlayerController()->SetInputMode(FInputModeGameOnly());
 	GetWorld()->GetFirstPlayerController()->bShowMouseCursor = false;
 }

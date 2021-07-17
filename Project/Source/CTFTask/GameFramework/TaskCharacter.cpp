@@ -11,6 +11,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "MotionControllerComponent.h"
 #include "XRMotionControllerBase.h" // for FXRMotionControllerBase::RightHandSourceId
+#include "CTFTask/Engine/TaskGameInstance.h"
 #include "Net/UnrealNetwork.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
@@ -49,7 +50,14 @@ ACTFTaskCharacter::ACTFTaskCharacter()
 	MeshCharacterBody->SetupAttachment(RootComponent);
 	MeshCharacterBody->SetRelativeRotation(FRotator(0, -90.0f, 0));
 	MeshCharacterBody->SetRelativeLocation(FVector(0, 0, -90));
-
+	//Create mesh for flag
+	FlagMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FlagMesh"));
+	FlagMesh->SetupAttachment(RootComponent);
+	FlagMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	FlagMesh->SetOnlyOwnerSee(false);
+	FlagMesh->SetOwnerNoSee(true);
+	FlagMesh->CastShadow = false;
+	FlagMesh->SetVisibility(false);
 	// Create a gun mesh component
 	ClientBodyGun = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ClientBodyGun"));
 	ClientBodyGun->SetOnlyOwnerSee(false);
@@ -133,6 +141,19 @@ void ACTFTaskCharacter::BeginPlay()
 		VR_Gun->SetHiddenInGame(true, true);
 		Mesh1P->SetHiddenInGame(false, true);
 	}
+	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(GetWorld(),0))
+	{
+		TaskPlayerState = PlayerController->GetPlayerState<ATaskPlayerState>();
+		if(TaskPlayerState )
+		{
+			if (UTaskGameInstance* TaskGameInstance = Cast<UTaskGameInstance>(GetWorld()->GetGameInstance()))
+			{
+				TaskPlayerState->SetPlayerName(TaskGameInstance->PlayerDataStruct.PlayerName);
+				TaskPlayerState->bIsTeamBlue = TaskGameInstance->PlayerDataStruct.bIsBlueTeam; 
+			}
+		}
+	}
+
 }
 
 void ACTFTaskCharacter::Tick(float DeltaSeconds)
@@ -193,7 +214,6 @@ void ACTFTaskCharacter::AddControllerPitchInput(float Val)
 	if(Val != 0.f)
 	{
 		Super::AddControllerPitchInput(Val);
-		GLog->Log(FString::Printf(TEXT("AddControllerPitchInput :::%f"),Val));
 		if (IsLocallyControlled())
 		{
 			if(GetLocalRole() == ROLE_Authority)
@@ -218,6 +238,11 @@ void ACTFTaskCharacter::AddControllerYawInput(float Val)
 }
 void ACTFTaskCharacter::OnFire()
 {
+
+	// if(TaskPlayerState != nullptr)
+	// {
+	// 	UE_LOG(LogTemp,Warning,TEXT("My Name : %s ::: Blue team:::%d"),*TaskPlayerState->GetPlayerName(),TaskPlayerState->bIsTeamBlue);
+	// }
 	// try and fire a projectile
 	if (ProjectileClass != NULL)
 	{
@@ -281,6 +306,7 @@ void ACTFTaskCharacter::BeginTouch(const ETouchIndex::Type FingerIndex, const FV
 	TouchItem.FingerIndex = FingerIndex;
 	TouchItem.Location = Location;
 	TouchItem.bMoved = false;
+	
 }
 
 void ACTFTaskCharacter::EndTouch(const ETouchIndex::Type FingerIndex, const FVector Location)
@@ -439,4 +465,23 @@ void ACTFTaskCharacter::SetCurrentHealth(float HealthValue)
 		CurrentHealth = FMath::Clamp(HealthValue, 0.f, MaxHealth);
 		OnHealthUpdate();
 	}
+}
+
+// void ACTFTaskCharacter::SetFlagVisibility_Implementation(const bool bIsBaseBlue)
+// {
+// 	
+// 	if(TaskPlayerState != nullptr && bIsBaseBlue != TaskPlayerState->bIsTeamBlue)
+// 	{
+// 		FlagMesh->SetVisibility(true);
+// 	}
+//
+// }
+void ACTFTaskCharacter::SetFlagVisibility(const bool bIsBaseBlue)
+{
+	
+	if(TaskPlayerState != nullptr && bIsBaseBlue != TaskPlayerState->bIsTeamBlue)
+	{
+		FlagMesh->SetVisibility(true);
+	}
+
 }

@@ -4,7 +4,14 @@
 #include "TaskGameModeMainMenu.h"
 #include "OnlineSubsystem.h"
 #include "OnlineSessionSettings.h"
+#include "CTFTask/Engine/TaskGameInstance.h"
 #include "Kismet/GameplayStatics.h"
+
+void ATaskGameModeMainMenu::BeginPlay()
+{
+	 TaskGameInstance = Cast<UTaskGameInstance>(GetWorld()->GetGameInstance());
+	
+}
 
 ATaskGameModeMainMenu::ATaskGameModeMainMenu()
 {
@@ -21,28 +28,41 @@ ATaskGameModeMainMenu::ATaskGameModeMainMenu()
 				this, &ATaskGameModeMainMenu::OnJoinSessionComplete);
 		}
 	}
+	
 }
 
 void ATaskGameModeMainMenu::OnSessionComplete(FName ServerName, bool Success)
 {
+	GLog->Log("On server created..");
 	if (Success && GetWorld() != nullptr)
 	{
-		GLog->Log("Session Created");
+		if(TaskGameInstance != nullptr)
+		{
+			TaskGameInstance->PlayerDataStruct.PlayerName = "First player";
+			
+		}
 		GetWorld()->ServerTravel("/Game/Maps/gameplay?listen");
 	}
 }
 
-void ATaskGameModeMainMenu::OnFindSessionsComplete(bool bSuccess)
+void ATaskGameModeMainMenu::OnFindSessionsComplete(const bool bSuccess)
 {
 	if (bSuccess && OnlineSessionSearch != nullptr)
 	{
-		TArray<FOnlineSessionSearchResult> OnlineSessionSearchResult = OnlineSessionSearch->SearchResults;
-		UE_LOG(LogTemp, Warning, TEXT("Total Session Found:::%d ::: "), OnlineSessionSearchResult.Num());
-		if (OnlineSessionSearchResult.Num() > 0)
+		TArray<FOnlineSessionSearchResult> OnlineSessionSearchResults = OnlineSessionSearch->SearchResults;
+		UE_LOG(LogTemp, Warning, TEXT("Total Session Found:::%d ::: "), OnlineSessionSearchResults.Num());
+		if (OnlineSessionSearchResults.Num() > 0)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("Total Session Found:::%s ::: "),
-			       *OnlineSessionSearchResult[0].Session.GetSessionIdStr());
-			OnSearchServerCompletedDelegate.Broadcast(FServerInfo{TArray<FString>{"Server1","Server2"}});
+			       *OnlineSessionSearchResults[0].Session.GetSessionIdStr());
+			TArray<FServerInfo> ServerList;
+			for(int Index = 0 ; Index < OnlineSessionSearchResults.Num() ; Index++)
+			{
+				FString ServerName ="";
+				OnlineSessionSearchResults[Index].Session.SessionSettings.Get("ServerName",ServerName);
+				ServerList.Add(FServerInfo{ServerName,Index});
+			}
+			OnSearchServerCompletedDelegate.Broadcast(FServerInfoList{ServerList});
 		}
 	}
 }
@@ -55,13 +75,16 @@ void ATaskGameModeMainMenu::OnJoinSessionComplete(FName SessionName, EOnJoinSess
 		OnlineSessionPtr->GetResolvedConnectString(SessionName, Address);
 		if (!Address.IsEmpty())
 		{
+			TaskGameInstance->PlayerDataStruct.PlayerName = "Second player";
+			TaskGameInstance->PlayerDataStruct.bIsBlueTeam = false;
 			PlayerController->ClientTravel(Address, ETravelType::TRAVEL_Absolute);
 		}
 	}
 }
 
-void ATaskGameModeMainMenu::CreateServer()
+void ATaskGameModeMainMenu::CreateServer(const FString ServerName)
 {
+	GLog->Log("Create server..");
 	FOnlineSessionSettings OnlineSessionSettings;
 	OnlineSessionSettings.bIsDedicated = false;
 	OnlineSessionSettings.bIsLANMatch = true;
@@ -69,17 +92,24 @@ void ATaskGameModeMainMenu::CreateServer()
 	OnlineSessionSettings.NumPublicConnections = 2;
 	OnlineSessionSettings.bUsesPresence = true;
 	OnlineSessionSettings.bShouldAdvertise = true;
-	OnlineSessionPtr->CreateSession(0, FName("Test Session"), OnlineSessionSettings);
+	OnlineSessionSettings.Set("ServerName",ServerName,EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
+	OnlineSessionPtr->CreateSession(0, FName(ServerName), OnlineSessionSettings);
 }
 
-void ATaskGameModeMainMenu::JoinServer()
+// void ATaskGameModeMainMenu::JoinServer(const FString ServerName)
+// {
+// 	if (OnlineSessionPtr != nullptr && OnlineSessionSearch != nullptr && OnlineSessionSearch->SearchResults.Num() > 0)
+// 	{
+// 		OnlineSessionPtr->JoinSession(0, "Test Session", OnlineSessionSearch->SearchResults[0]);
+// 	}
+// }
+void ATaskGameModeMainMenu::JoinServer(const FName ServerName , const int SessionIndex)
 {
 	if (OnlineSessionPtr != nullptr && OnlineSessionSearch != nullptr && OnlineSessionSearch->SearchResults.Num() > 0)
 	{
-		OnlineSessionPtr->JoinSession(0, "Test Session", OnlineSessionSearch->SearchResults[0]);
+		OnlineSessionPtr->JoinSession(0, ServerName, OnlineSessionSearch->SearchResults[SessionIndex]);
 	}
 }
-
 void ATaskGameModeMainMenu::FindServer()
 {
 	OnlineSessionSearch = MakeShareable(new FOnlineSessionSearch());

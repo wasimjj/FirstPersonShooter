@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Player/TaskPlayerState.h"
+
 #include "TaskCharacter.generated.h"
 
 class UInputComponent;
@@ -21,6 +23,8 @@ class ACTFTaskCharacter : public ACharacter
 	UPROPERTY(VisibleDefaultsOnly, Category=Mesh)
 	class USkeletalMeshComponent* MeshCharacterBody;
 
+	UPROPERTY(VisibleDefaultsOnly, Category=Mesh)
+	class UStaticMeshComponent* FlagMesh;
 	/** Gun mesh: for the mesh body to for other players*/
 	UPROPERTY(VisibleDefaultsOnly, Category = Mesh)
 	class USkeletalMeshComponent* ClientBodyGun;
@@ -192,4 +196,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Health")
 	void SetCurrentHealth(float HealthValue);
+	//UFUNCTION(Server , Reliable, BlueprintCallable , Category="Flag")
+	void SetFlagVisibility(const bool bIsBaseBlue);
+public:
+	UPROPERTY()
+	ATaskPlayerState* TaskPlayerState;
 };
