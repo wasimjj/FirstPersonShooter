@@ -10,6 +10,7 @@
 #include "HeadMountedDisplayFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "MotionControllerComponent.h"
+#include "TaskHUD.h"
 #include "XRMotionControllerBase.h" // for FXRMotionControllerBase::RightHandSourceId
 #include "CTFTask/Engine/TaskGameInstance.h"
 #include "Net/UnrealNetwork.h"
@@ -141,28 +142,81 @@ void ACTFTaskCharacter::BeginPlay()
 		VR_Gun->SetHiddenInGame(true, true);
 		Mesh1P->SetHiddenInGame(false, true);
 	}
-	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(GetWorld(),0))
+	FTimerDelegate TimerDel;
+	FTimerHandle TimerHandle;
+	TimerDel.BindUFunction(this, FName("PlayerStateSetup"), 0, 0.0);
+	GetWorld()->GetTimerManager().SetTimer(TimerHandle, TimerDel, .2f, false);
+}
+
+void ACTFTaskCharacter::PlayerStateSetup()
+{
+	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
 	{
 		TaskPlayerState = PlayerController->GetPlayerState<ATaskPlayerState>();
-		if(TaskPlayerState )
-		{
-			if (UTaskGameInstance* TaskGameInstance = Cast<UTaskGameInstance>(GetWorld()->GetGameInstance()))
-			{
-				TaskPlayerState->SetPlayerName(TaskGameInstance->PlayerDataStruct.PlayerName);
-				TaskPlayerState->bIsTeamBlue = TaskGameInstance->PlayerDataStruct.bIsBlueTeam; 
-			}
-		}
 	}
-
+	UTaskGameInstance* TaskGameInstance = Cast<UTaskGameInstance>(GetWorld()->GetGameInstance());
+	if (IsLocallyControlled())
+	{
+		PlayerStateSetupInternal(TaskGameInstance->PlayerDataStruct);
+		UE_LOG(LogTemp, Warning, TEXT("IsLocallyControlled :::"));
+	}
 }
 
-void ACTFTaskCharacter::Tick(float DeltaSeconds)
+void ACTFTaskCharacter::PlayerStateSetupInternal_Implementation(FPlayerDataStruct PlayerDataStruct)
 {
-	//Findloo GetActorLocation()
+	UE_LOG(LogTemp, Warning, TEXT("PlayerController found :::"));
+	if (TaskPlayerState)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TaskPlayerState found :::"));
+
+		TaskPlayerState->SetPlayerName(PlayerDataStruct.PlayerName);
+		TaskPlayerState->bIsTeamBlue = PlayerDataStruct.bIsBlueTeam;
+		UE_LOG(LogTemp, Warning, TEXT("My name is :::%s ::: my color :::%d"), *TaskPlayerState->GetPlayerName(),
+		       TaskPlayerState->bIsTeamBlue);
+		// if(ATaskHUD* TaskHUD = Cast<ATaskHUD>(PlayerController->GetHUD()))
+		// {
+		// 	TaskHUD->TaskPlayerStateRed = TaskPlayerState;
+		// 	if(TaskPlayerState->bIsTeamBlue)
+		// 	{
+		// 		TaskHUD->TaskPlayerStateBlue = TaskPlayerState;
+		// 	}
+		// 	if(TaskHUD->TaskPlayerStateRed != nullptr && TaskHUD->TaskPlayerStateBlue != nullptr)
+		// 	{
+		// 		TaskHUD->OnRedTeamInitializeDelegate.Broadcast();
+		// 	}
+		// 	
+		// }
+	}
 }
+
+
+void ACTFTaskCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	//if(IsLocallyControlled())
+	// {
+	// 	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+	// 	{
+	// 		TaskPlayerState = PlayerController->GetPlayerState<ATaskPlayerState>();
+	// 		UE_LOG(LogTemp,Warning,TEXT("PlayerController found :::"));
+	//
+	// 		if(TaskPlayerState )
+	// 		{
+	// 			UE_LOG(LogTemp,Warning,TEXT("TaskPlayerState found :::"));
+	// 			if (UTaskGameInstance* TaskGameInstance = Cast<UTaskGameInstance>(GetWorld()->GetGameInstance()))
+	// 			{
+	// 				TaskPlayerState->SetPlayerName(TaskGameInstance->PlayerDataStruct.PlayerName);
+	// 				TaskPlayerState->bIsTeamBlue = TaskGameInstance->PlayerDataStruct.bIsBlueTeam;
+	// 				UE_LOG(LogTemp,Warning,TEXT("My name is :::%s ::: my color :::%d"),*TaskPlayerState->GetPlayerName(),TaskPlayerState->bIsTeamBlue);
+	// 			}
+	// 		}
+	// 	}
+	// }
+}
+
 
 float ACTFTaskCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator,
-	AActor* DamageCauser)
+                                    AActor* DamageCauser)
 {
 	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, "TakeDamage from c++");
 	SetCurrentHealth(CurrentHealth - DamageAmount);
@@ -174,7 +228,6 @@ void ACTFTaskCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ACTFTaskCharacter, CurrentHealth);
 }
-
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -209,36 +262,37 @@ void ACTFTaskCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerI
 	PlayerInputComponent->BindAxis("LookUp", this, &ACTFTaskCharacter::AddControllerPitchInput);
 	//PlayerInputComponent->BindAxis("LookUpRate", this, &ACTFTaskCharacter::LookUpAtRate);
 }
+
 void ACTFTaskCharacter::AddControllerPitchInput(float Val)
 {
-	if(Val != 0.f)
+	if (Val != 0.f)
 	{
 		Super::AddControllerPitchInput(Val);
 		if (IsLocallyControlled())
 		{
-			if(GetLocalRole() == ROLE_Authority)
+			if (GetLocalRole() == ROLE_Authority)
 			{
 				CorrectRotationMulticast(GetControlRotation());
-
-			}else
+			}
+			else
 			{
 				CorrectRotationOnServer(GetControlRotation());
 			}
 		}
 	}
-	
 }
 
 void ACTFTaskCharacter::AddControllerYawInput(float Val)
 {
-	if(Val != 0.f)
+	if (Val != 0.f)
 	{
 		Super::AddControllerYawInput(Val);
 	}
 }
+
+
 void ACTFTaskCharacter::OnFire()
 {
-
 	// if(TaskPlayerState != nullptr)
 	// {
 	// 	UE_LOG(LogTemp,Warning,TEXT("My Name : %s ::: Blue team:::%d"),*TaskPlayerState->GetPlayerName(),TaskPlayerState->bIsTeamBlue);
@@ -263,8 +317,7 @@ void ACTFTaskCharacter::OnFire()
 					                               ? FP_MuzzleLocation->GetComponentLocation()
 					                               : GetActorLocation()) + SpawnRotation.RotateVector(GunOffset);
 
-				OnFireServer(SpawnLocation,SpawnRotation);
-
+				OnFireServer(SpawnLocation, SpawnRotation);
 			}
 		}
 	}
@@ -306,7 +359,6 @@ void ACTFTaskCharacter::BeginTouch(const ETouchIndex::Type FingerIndex, const FV
 	TouchItem.FingerIndex = FingerIndex;
 	TouchItem.Location = Location;
 	TouchItem.bMoved = false;
-	
 }
 
 void ACTFTaskCharacter::EndTouch(const ETouchIndex::Type FingerIndex, const FVector Location)
@@ -319,42 +371,6 @@ void ACTFTaskCharacter::EndTouch(const ETouchIndex::Type FingerIndex, const FVec
 }
 
 //Commenting this section out to be consistent with FPS BP template.
-//This allows the user to turn without using the right virtual joystick
-
-//void ACTFTaskCharacter::TouchUpdate(const ETouchIndex::Type FingerIndex, const FVector Location)
-//{
-//	if ((TouchItem.bIsPressed == true) && (TouchItem.FingerIndex == FingerIndex))
-//	{
-//		if (TouchItem.bIsPressed)
-//		{
-//			if (GetWorld() != nullptr)
-//			{
-//				UGameViewportClient* ViewportClient = GetWorld()->GetGameViewport();
-//				if (ViewportClient != nullptr)
-//				{
-//					FVector MoveDelta = Location - TouchItem.Location;
-//					FVector2D ScreenSize;
-//					ViewportClient->GetViewportSize(ScreenSize);
-//					FVector2D ScaledDelta = FVector2D(MoveDelta.X, MoveDelta.Y) / ScreenSize;
-//					if (FMath::Abs(ScaledDelta.X) >= 4.0 / ScreenSize.X)
-//					{
-//						TouchItem.bMoved = true;
-//						float Value = ScaledDelta.X * BaseTurnRate;
-//						AddControllerYawInput(Value);
-//					}
-//					if (FMath::Abs(ScaledDelta.Y) >= 4.0 / ScreenSize.Y)
-//					{
-//						TouchItem.bMoved = true;
-//						float Value = ScaledDelta.Y * BaseTurnRate;
-//						AddControllerPitchInput(Value);
-//					}
-//					TouchItem.Location = Location;
-//				}
-//				TouchItem.Location = Location;
-//			}
-//		}
-//	}
-//}
 
 void ACTFTaskCharacter::MoveForward(float Value)
 {
@@ -378,15 +394,12 @@ void ACTFTaskCharacter::TurnAtRate(float Rate)
 {
 	// calculate delta for this frame from the rate information
 	AddControllerYawInput(Rate * BaseTurnRate * GetWorld()->GetDeltaSeconds());
-	
 }
 
 void ACTFTaskCharacter::LookUpAtRate(float Rate)
 {
 	// calculate delta for this frame from the rate information
 	AddControllerPitchInput(Rate * BaseLookUpRate * GetWorld()->GetDeltaSeconds());
-	
-	
 }
 
 bool ACTFTaskCharacter::EnableTouchscreenMovement(class UInputComponent* PlayerInputComponent)
@@ -404,7 +417,7 @@ bool ACTFTaskCharacter::EnableTouchscreenMovement(class UInputComponent* PlayerI
 	return false;
 }
 
-void ACTFTaskCharacter::OnFireServer_Implementation(const FVector Location , const FRotator Rotation)
+void ACTFTaskCharacter::OnFireServer_Implementation(const FVector Location, const FRotator Rotation)
 {
 	FActorSpawnParameters ActorSpawnParams;
 	ActorSpawnParams.Instigator = GetInstigator();
@@ -420,7 +433,6 @@ void ACTFTaskCharacter::CorrectRotationOnServer_Implementation(FRotator Rotator)
 	{
 		FirstPersonCameraComponent->SetWorldRotation(Rotator);
 	}
-	
 }
 
 void ACTFTaskCharacter::CorrectRotationMulticast_Implementation(FRotator Rotator)
@@ -453,7 +465,8 @@ void ACTFTaskCharacter::OnHealthUpdate()
 
 	if (GetLocalRole() == ROLE_Authority)
 	{
-		const FString HealthMessage = FString::Printf(TEXT("%s now has %f health remaining."), *GetFName().ToString(), CurrentHealth);
+		const FString HealthMessage = FString::Printf(
+			TEXT("%s now has %f health remaining."), *GetFName().ToString(), CurrentHealth);
 		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, HealthMessage);
 	}
 }
@@ -467,21 +480,19 @@ void ACTFTaskCharacter::SetCurrentHealth(float HealthValue)
 	}
 }
 
-// void ACTFTaskCharacter::SetFlagVisibility_Implementation(const bool bIsBaseBlue)
-// {
-// 	
-// 	if(TaskPlayerState != nullptr && bIsBaseBlue != TaskPlayerState->bIsTeamBlue)
-// 	{
-// 		FlagMesh->SetVisibility(true);
-// 	}
-//
-// }
 void ACTFTaskCharacter::SetFlagVisibility(const bool bIsBaseBlue)
 {
-	
-	if(TaskPlayerState != nullptr && bIsBaseBlue != TaskPlayerState->bIsTeamBlue)
+	if( TaskPlayerState!=nullptr)
 	{
-		FlagMesh->SetVisibility(true);
+		UE_LOG(LogTemp,Warning, TEXT("ACTFTaskCharacter::SetFlagVisibility score:::%d ::::name::%s"),TaskPlayerState->GetScore(),*TaskPlayerState->GetPlayerName());
+		if (bIsFlagCaptured && bIsBaseBlue == TaskPlayerState->bIsTeamBlue) // Flag Captured and reached to his own base
+			{
+			TaskPlayerState->SetScore(TaskPlayerState->GetScore() + 1);
+			UE_LOG(LogTemp,Warning, TEXT("ACTFTaskCharacter::SetFlagVisibility score:::%d ::::name::%s"),TaskPlayerState->GetScore(),*TaskPlayerState->GetPlayerName());
+			}
+		bIsFlagCaptured = bIsBaseBlue != TaskPlayerState->bIsTeamBlue;
+		FlagMesh->SetVisibility(bIsBaseBlue != TaskPlayerState->bIsTeamBlue);
+		CaptureFlagStatusUpdateDelegate.Broadcast(bIsFlagCaptured);
 	}
-
+	
 }

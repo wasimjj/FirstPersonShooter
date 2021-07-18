@@ -71,12 +71,11 @@ void ATaskGameModeMainMenu::OnJoinSessionComplete(FName SessionName, EOnJoinSess
 {
 	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0))
 	{
+		UE_LOG(LogTemp,Warning,TEXT ("Joined server.."));
 		FString Address = "";
 		OnlineSessionPtr->GetResolvedConnectString(SessionName, Address);
 		if (!Address.IsEmpty())
 		{
-			TaskGameInstance->PlayerDataStruct.PlayerName = "Second player";
-			TaskGameInstance->PlayerDataStruct.bIsBlueTeam = false;
 			PlayerController->ClientTravel(Address, ETravelType::TRAVEL_Absolute);
 		}
 	}
@@ -84,7 +83,7 @@ void ATaskGameModeMainMenu::OnJoinSessionComplete(FName SessionName, EOnJoinSess
 
 void ATaskGameModeMainMenu::CreateServer(const FString ServerName)
 {
-	GLog->Log("Create server..");
+	UE_LOG(LogTemp,Warning,TEXT ("Create server.."));
 	FOnlineSessionSettings OnlineSessionSettings;
 	OnlineSessionSettings.bIsDedicated = false;
 	OnlineSessionSettings.bIsLANMatch = true;
@@ -107,6 +106,9 @@ void ATaskGameModeMainMenu::JoinServer(const FName ServerName , const int Sessio
 {
 	if (OnlineSessionPtr != nullptr && OnlineSessionSearch != nullptr && OnlineSessionSearch->SearchResults.Num() > 0)
 	{
+		UE_LOG(LogTemp,Warning,TEXT ("JoinServer server.. second player "));
+		TaskGameInstance->PlayerDataStruct.PlayerName = "Second player";
+		TaskGameInstance->PlayerDataStruct.bIsBlueTeam = false;
 		OnlineSessionPtr->JoinSession(0, ServerName, OnlineSessionSearch->SearchResults[SessionIndex]);
 	}
 }

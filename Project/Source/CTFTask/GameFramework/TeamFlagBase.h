@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+#include "TaskCharacter.h"
 #include "Components/BoxComponent.h"
 #include "GameFramework/Actor.h"
 #include "TeamFlagBase.generated.h"
@@ -14,6 +15,7 @@ class CTFTASK_API ATeamFlagBase : public AActor
 	GENERATED_BODY()
 	
 public:
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly , Category="Flag" )
 	UBoxComponent* BoxComponent;
 	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly , Category="Flag" )
@@ -26,10 +28,14 @@ public:
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-	UPROPERTY(BlueprintReadOnly , Category="Flag")
-	bool bIsFlagOnTheBase = true;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly , Category="Flag")
-	bool bIsBlueFlagBase = true;
-
-
+	bool bIsBlueTeamBase = true;
+	//UFUNCTION(Server , Reliable ,Category="Falg")
+	//void PlayerFlagChangeVisibility(ACTFTaskCharacter* TaskCharacter,const bool bIsVisibility);
+	public:
+	UPROPERTY(/*ReplicatedUsing=OnRep_UpdateFlagOnTheBase, BlueprintReadOnly , Category="Flag"*/)
+	bool bIsFlagOnTheBase = true;
+	//UFUNCTION()
+	//void OnRep_UpdateFlagOnTheBase();
 };

@@ -12,6 +12,13 @@ void ATaskPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ATaskPlayerState,bIsTeamBlue);
 }
 
+void ATaskPlayerState::OnRep_Score()
+{
+	UE_LOG(LogTemp,Warning, TEXT("ATaskPlayerState::OnRep_Score:::%d"),GetScore());
+	Super::OnRep_Score();
+	OnScoreUpdateDelegate.Broadcast(GetScore());
+}
+
 void ATaskPlayerState::OnRep_IsTeamBlue()
 {
 	UE_LOG(LogTemp,Warning,TEXT("I am from Blue Team =%d"),bIsTeamBlue);

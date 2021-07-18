@@ -3,12 +3,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+#include "CTFTask/Engine/TaskGameInstance.h"
 #include "GameFramework/Character.h"
 #include "Player/TaskPlayerState.h"
 
 #include "TaskCharacter.generated.h"
 
 class UInputComponent;
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCaptureFlagStatusUpdateDelegate, bool, bIsCapture);
 
 UCLASS(config=Game)
 class ACTFTaskCharacter : public ACharacter
@@ -63,13 +66,12 @@ public:
 
 protected:
 	virtual void BeginPlay();
-	virtual void Tick(float DeltaSeconds) override;
 	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator,
 	                         AActor* DamageCauser) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void AddControllerPitchInput(float Val) override;
 	virtual void AddControllerYawInput(float Val) override;
-
+	virtual void PostInitializeComponents() override;
 public:
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Camera)
@@ -196,9 +198,19 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Health")
 	void SetCurrentHealth(float HealthValue);
-	//UFUNCTION(Server , Reliable, BlueprintCallable , Category="Flag")
+	UFUNCTION(BlueprintCallable , Category="Flag")
 	void SetFlagVisibility(const bool bIsBaseBlue);
+	UFUNCTION(Server , Reliable )
+	void PlayerStateSetupInternal(FPlayerDataStruct PlayerDataStruct);
+	UFUNCTION(BlueprintCallable , Category="PlayerState")
+	void PlayerStateSetup();
+
 public:
 	UPROPERTY()
 	ATaskPlayerState* TaskPlayerState;
+	UPROPERTY(BlueprintAssignable, Category="Flag")
+	FCaptureFlagStatusUpdateDelegate CaptureFlagStatusUpdateDelegate;
+	UPROPERTY(BlueprintReadOnly , Category="Flag")
+	bool bIsFlagCaptured;
 };
+
