@@ -50,5 +50,5 @@ public:
 	UPROPERTY(BlueprintReadOnly , Category="Rule")
 	int MaxPlayer = 2;
 	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly,Category="Rule")
-	int GameMatchTime = 300;
+	int GameMatchTime = 60;
 };

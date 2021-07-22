@@ -82,6 +82,10 @@ void ATaskGameStateBase::OnGameStateChange()
 	switch (GameStateType)
 	{
 	case EGameState::EGameEnd:
+		UWidgetBlueprintLibrary::SetInputMode_UIOnlyEx(UGameplayStatics::GetPlayerController(GetWorld(), 0));
+		OnGameEndDelegate.Broadcast();
+		UE_LOG(LogTemp, Warning, TEXT("OnGameEndDelegate Fired "));
+		break;
 	case EGameState::EGameLobby:
 		UWidgetBlueprintLibrary::SetInputMode_UIOnlyEx(UGameplayStatics::GetPlayerController(GetWorld(), 0));
 		break;

@@ -150,8 +150,8 @@ void ACTFTaskCharacter::BeginPlay()
 	}
 	FTimerDelegate TimerDel;
 	FTimerHandle TimerHandle;
-	TimerDel.BindUFunction(this, FName("PlayerStateSetup"), 0, 0.0);
-	GetWorld()->GetTimerManager().SetTimer(TimerHandle, TimerDel, .2f, false);
+	TimerDel.BindUFunction(this, FName("PlayerStateSetup"), 0, 0.0); // it is weired i know but not working in expected function 
+	GetWorld()->GetTimerManager().SetTimer(TimerHandle, TimerDel, .5f, false);
 	AnimInstanceSelf = Mesh1P->GetAnimInstance();
 	AnimInstanceEnemy = MeshCharacterBody->GetAnimInstance();
 	TaskGameStateBase =  Cast<ATaskGameStateBase>( UGameplayStatics::GetGameState(GetWorld()));

@@ -47,6 +47,8 @@ public:
 	EGameState GameStateType;
 	UPROPERTY(BlueprintAssignable)
 	FOnGameStartDelegate OnGameStartDelegate;
+	UPROPERTY(BlueprintAssignable)
+	FOnGameStartDelegate OnGameEndDelegate;
 	UFUNCTION()
 	void OnRep_OnChangeGameStateType();
 	UFUNCTION(BlueprintCallable)
