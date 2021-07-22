@@ -32,10 +32,10 @@ public:
 
 	/** Primary draw call for the HUD */
 	virtual void DrawHUD() override;
-	UPROPERTY(BlueprintReadOnly,Category="Score")
-	ATaskPlayerState* TaskPlayerStateBlue;
-	UPROPERTY(BlueprintReadOnly,Category="Score")
-	ATaskPlayerState* TaskPlayerStateRed;
-	UPROPERTY(BlueprintAssignable , Category="Setup")
-	FOnInitializeDelegate OnRedTeamInitializeDelegate;
+	// UPROPERTY(BlueprintReadOnly,Category="Score")
+	// ATaskPlayerState* TaskPlayerStateBlue;
+	// UPROPERTY(BlueprintReadOnly,Category="Score")
+	// ATaskPlayerState* TaskPlayerStateRed;
+	// UPROPERTY(BlueprintAssignable , Category="Setup")
+	// FOnInitializeDelegate OnRedTeamInitializeDelegate;
 };

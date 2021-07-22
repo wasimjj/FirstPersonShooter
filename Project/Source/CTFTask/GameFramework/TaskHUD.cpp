@@ -17,6 +17,7 @@ ATaskHUD::ATaskHUD()
 
 void ATaskHUD::BeginPlay()
 {
+	Super::BeginPlay();
 	if (!CrosshairTexture.ToString().IsEmpty())
 	{
 		CrosshairTex = CrosshairTexture.LoadSynchronous();
