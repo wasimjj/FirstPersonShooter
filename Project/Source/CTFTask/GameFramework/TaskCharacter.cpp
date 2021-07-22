@@ -10,8 +10,11 @@
 #include "HeadMountedDisplayFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "MotionControllerComponent.h"
-#include "TaskHUD.h"
+#include "TaskGameModeGameplay.h"
+#include "TaskGameStateBase.h"
+
 #include "XRMotionControllerBase.h" // for FXRMotionControllerBase::RightHandSourceId
+#include "Blueprint/WidgetBlueprintLibrary.h"
 #include "CTFTask/Engine/TaskGameInstance.h"
 #include "Net/UnrealNetwork.h"
 
@@ -112,8 +115,7 @@ ACTFTaskCharacter::ACTFTaskCharacter()
 	//bUsingMotionControllers = true;
 	//
 	//Initialize the player's Health
-	MaxHealth = 100.0f;
-	CurrentHealth = MaxHealth;
+
 }
 
 void ACTFTaskCharacter::BeginPlay()
@@ -142,12 +144,27 @@ void ACTFTaskCharacter::BeginPlay()
 		VR_Gun->SetHiddenInGame(true, true);
 		Mesh1P->SetHiddenInGame(false, true);
 	}
+	if(GetLocalRole() == ROLE_Authority)
+	{
+		TaskGameModeGameplay = Cast<ATaskGameModeGameplay>( UGameplayStatics::GetGameMode(GetWorld()));
+	}
 	FTimerDelegate TimerDel;
 	FTimerHandle TimerHandle;
 	TimerDel.BindUFunction(this, FName("PlayerStateSetup"), 0, 0.0);
 	GetWorld()->GetTimerManager().SetTimer(TimerHandle, TimerDel, .2f, false);
+	AnimInstanceSelf = Mesh1P->GetAnimInstance();
+	AnimInstanceEnemy = MeshCharacterBody->GetAnimInstance();
+	TaskGameStateBase =  Cast<ATaskGameStateBase>( UGameplayStatics::GetGameState(GetWorld()));
+	if(HasAuthority())
+	{
+		TaskGameModeGameplay->OnGameStartDelegate.AddDynamic(this,&ACTFTaskCharacter::OnGameStart);// This character is also server
+	}
 }
+void ACTFTaskCharacter::OnGameStart()
+{
+	OnStateInitializeDelegate.Broadcast(); // fire again for listen server 
 
+}
 void ACTFTaskCharacter::PlayerStateSetup()
 {
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
@@ -158,34 +175,42 @@ void ACTFTaskCharacter::PlayerStateSetup()
 	if (IsLocallyControlled())
 	{
 		PlayerStateSetupInternal(TaskGameInstance->PlayerDataStruct);
-		UE_LOG(LogTemp, Warning, TEXT("IsLocallyControlled :::"));
+		OnStateInitializeDelegate.Broadcast();
 	}
 }
 
+FVector ACTFTaskCharacter::GetLocationNearMyBase()
+{
+	
+	if(TaskPlayerState->bIsTeamBlue)
+	{
+		return FVector(FMath::RandRange(-1200,-1500),FMath::RandRange(1000,1300),270);
+	}
+	return FVector(FMath::RandRange(200,500),FMath::RandRange(-1000,-1300),270);
+}
+
+void ACTFTaskCharacter::ReSpawnMe()
+{
+	TaskPlayerState->CurrentHealth = 100;
+	TaskPlayerState->bIsFlagCaptured = false;
+	TaskPlayerState->CaptureFlagStatusUpdateDelegate.Broadcast(TaskPlayerState->bIsFlagCaptured);
+	const FVector SpawnLocation = GetLocationNearMyBase();
+	SetActorLocation(SpawnLocation);
+	
+}
+void ACTFTaskCharacter::CheckIfCarryingFlag()
+{
+	if(TaskPlayerState->bIsFlagCaptured)
+	{
+		TaskGameModeGameplay->SpawnTempTeamBase(!TaskPlayerState->bIsTeamBlue, GetActorLocation());
+	}
+}
 void ACTFTaskCharacter::PlayerStateSetupInternal_Implementation(FPlayerDataStruct PlayerDataStruct)
 {
-	UE_LOG(LogTemp, Warning, TEXT("PlayerController found :::"));
 	if (TaskPlayerState)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("TaskPlayerState found :::"));
-
 		TaskPlayerState->SetPlayerName(PlayerDataStruct.PlayerName);
 		TaskPlayerState->bIsTeamBlue = PlayerDataStruct.bIsBlueTeam;
-		UE_LOG(LogTemp, Warning, TEXT("My name is :::%s ::: my color :::%d"), *TaskPlayerState->GetPlayerName(),
-		       TaskPlayerState->bIsTeamBlue);
-		// if(ATaskHUD* TaskHUD = Cast<ATaskHUD>(PlayerController->GetHUD()))
-		// {
-		// 	TaskHUD->TaskPlayerStateRed = TaskPlayerState;
-		// 	if(TaskPlayerState->bIsTeamBlue)
-		// 	{
-		// 		TaskHUD->TaskPlayerStateBlue = TaskPlayerState;
-		// 	}
-		// 	if(TaskHUD->TaskPlayerStateRed != nullptr && TaskHUD->TaskPlayerStateBlue != nullptr)
-		// 	{
-		// 		TaskHUD->OnRedTeamInitializeDelegate.Broadcast();
-		// 	}
-		// 	
-		// }
 	}
 }
 
@@ -218,15 +243,23 @@ void ACTFTaskCharacter::PostInitializeComponents()
 float ACTFTaskCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator,
                                     AActor* DamageCauser)
 {
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, "TakeDamage from c++");
-	SetCurrentHealth(CurrentHealth - DamageAmount);
+	AnimInstanceEnemy->Montage_Play(HitReactMontage, 1.f);
+	if(HasAuthority())
+	{
+		SetCurrentHealth(TaskPlayerState->CurrentHealth - DamageAmount);
+		if(TaskPlayerState->CurrentHealth <= 0)
+		{
+			PlayDeathAnimation();
+		}
+	}
+
 	return DamageAmount;
 }
 
 void ACTFTaskCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(ACTFTaskCharacter, CurrentHealth);
+	
 }
 
 
@@ -332,10 +365,10 @@ void ACTFTaskCharacter::OnFire()
 	if (FireAnimation != NULL)
 	{
 		// Get the animation object for the arms mesh
-		UAnimInstance* AnimInstance = Mesh1P->GetAnimInstance();
-		if (AnimInstance != NULL)
+	
+		if (AnimInstanceSelf != NULL)
 		{
-			AnimInstance->Montage_Play(FireAnimation, 1.f);
+			AnimInstanceSelf->Montage_Play(FireAnimation, 1.f);
 		}
 	}
 }
@@ -444,55 +477,46 @@ void ACTFTaskCharacter::CorrectRotationMulticast_Implementation(FRotator Rotator
 	}
 }
 
-void ACTFTaskCharacter::OnRep_CurrentHealth()
+void ACTFTaskCharacter::PlayDeathAnimation()
 {
-	OnHealthUpdate();
-}
-
-void ACTFTaskCharacter::OnHealthUpdate()
-{
-	if (IsLocallyControlled())
+	AnimInstanceEnemy->Montage_Play(DeathMontage, 1.f);
+	FlagMesh->SetVisibility(false);
+	if(HasAuthority())
 	{
-		const FString healthMessage = FString::Printf(TEXT("You now have %f health remaining."), CurrentHealth);
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, healthMessage);
-
-		if (CurrentHealth <= 0)
-		{
-			const FString DeathMessage = FString::Printf(TEXT("You have been killed."));
-			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, DeathMessage);
-		}
-	}
-
-	if (GetLocalRole() == ROLE_Authority)
-	{
-		const FString HealthMessage = FString::Printf(
-			TEXT("%s now has %f health remaining."), *GetFName().ToString(), CurrentHealth);
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, HealthMessage);
+		FTimerDelegate TimerDel;
+		FTimerHandle TimerHandle;
+		TimerDel.BindUFunction(this, FName("ReSpawnMe"), 0, 0.0);
+		GetWorld()->GetTimerManager().SetTimer(TimerHandle, TimerDel, 1.50f, false);
+		CheckIfCarryingFlag();
 	}
 }
+
 
 void ACTFTaskCharacter::SetCurrentHealth(float HealthValue)
 {
-	if (GetLocalRole() == ROLE_Authority)
-	{
-		CurrentHealth = FMath::Clamp(HealthValue, 0.f, MaxHealth);
-		OnHealthUpdate();
-	}
+	
+		TaskPlayerState->CurrentHealth = FMath::Clamp(HealthValue, 0.f, TaskPlayerState->MaxHealth);
+		TaskPlayerState->OnHealthUpdate();
 }
 
 void ACTFTaskCharacter::SetFlagVisibility(const bool bIsBaseBlue)
 {
-	if( TaskPlayerState!=nullptr)
+	if(TaskPlayerState->bIsTeamBlue == bIsBaseBlue &&
+		!TaskPlayerState->bIsFlagCaptured)
 	{
-		UE_LOG(LogTemp,Warning, TEXT("ACTFTaskCharacter::SetFlagVisibility score:::%d ::::name::%s"),TaskPlayerState->GetScore(),*TaskPlayerState->GetPlayerName());
-		if (bIsFlagCaptured && bIsBaseBlue == TaskPlayerState->bIsTeamBlue) // Flag Captured and reached to his own base
-			{
-			TaskPlayerState->SetScore(TaskPlayerState->GetScore() + 1);
-			UE_LOG(LogTemp,Warning, TEXT("ACTFTaskCharacter::SetFlagVisibility score:::%d ::::name::%s"),TaskPlayerState->GetScore(),*TaskPlayerState->GetPlayerName());
-			}
-		bIsFlagCaptured = bIsBaseBlue != TaskPlayerState->bIsTeamBlue;
-		FlagMesh->SetVisibility(bIsBaseBlue != TaskPlayerState->bIsTeamBlue);
-		CaptureFlagStatusUpdateDelegate.Broadcast(bIsFlagCaptured);
+		return; // I am on my base without flag
 	}
-	
+	if (TaskPlayerState->bIsFlagCaptured) 
+	{
+		TaskGameStateBase->AddScore(TaskPlayerState->bIsTeamBlue);
+		TaskPlayerState->bIsFlagCaptured = false;
+		TaskGameModeGameplay->OnFlagCapturedDelegate.Broadcast(TaskPlayerState->bIsTeamBlue); // Reset flag base
+
+	}
+	else 
+	{
+		TaskPlayerState->bIsFlagCaptured = true;
+	}
+	FlagMesh->SetVisibility(TaskPlayerState->bIsFlagCaptured);
+	TaskPlayerState->CaptureFlagStatusUpdateDelegate.Broadcast(TaskPlayerState->bIsFlagCaptured);
 }

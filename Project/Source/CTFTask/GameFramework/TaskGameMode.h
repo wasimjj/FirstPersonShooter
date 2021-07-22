@@ -3,6 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+#include "TeamFlagBase.h"
 #include "GameFramework/GameMode.h"
 #include "TaskGameMode.generated.h"
 
@@ -13,5 +15,4 @@ UCLASS()
 class CTFTASK_API ATaskGameMode : public AGameMode
 {
 	GENERATED_BODY()
-	
 };

@@ -4,20 +4,14 @@
 #include "TeamFlagBase.h"
 
 #include "TaskCharacter.h"
+#include "TaskGameModeGameplay.h"
+#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 
-void ATeamFlagBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	//DOREPLIFETIME(ATeamFlagBase,bIsFlagOnTheBase);
-}
-
-// Sets default values
 ATeamFlagBase::ATeamFlagBase()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	BoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("TeamsFlag"));
-	BoxComponent->InitBoxExtent(FVector(100.0f,100.0f,100.0f));
+	BoxComponent->InitBoxExtent(FVector(100.0f, 100.0f, 100.0f));
 	BoxComponent->SetWalkableSlopeOverride(FWalkableSlopeOverride(WalkableSlope_Unwalkable, 0.f));
 	BoxComponent->CanCharacterStepUpOn = ECB_No;
 	BoxComponent->SetupAttachment(RootComponent);
@@ -29,60 +23,70 @@ ATeamFlagBase::ATeamFlagBase()
 	FlagMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	FlagMesh->SetCollisionProfileName("Custom");
 	FlagMesh->SetupAttachment(BoxComponent);
-
 }
-// Called when the game starts or when spawned
+
 void ATeamFlagBase::BeginPlay()
 {
 	Super::BeginPlay();
-	BoxComponent->OnComponentBeginOverlap.AddDynamic(this,&ATeamFlagBase::OnComponentBeginOverlap);
-	
+	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0))
+	{
+		if (PlayerController->GetLocalRole() == ROLE_Authority)
+		{
+			BoxComponent->OnComponentBeginOverlap.AddDynamic(this, &ATeamFlagBase::OnComponentBeginOverlap);
+		}
+	}
+	TaskGameModeGameplay = Cast<ATaskGameModeGameplay>(UGameplayStatics::GetGameMode(GetWorld()));
 }
 
-// void ATeamFlagBase::OnRep_UpdateFlagOnTheBase()
-// {
-// 	FlagMesh->SetVisibility(false);
-// 	UE_LOG(LogTemp,Warning,TEXT("BaseFlagChangeVisibility_Implementation :::%d"),bIsFlagOnTheBase);
-//
-// }
+void ATeamFlagBase::ResetFlagBase()
+{
+	FlagMesh->SetVisibility(true);
+	bIsFlagOnTheBase = true;
+}
+
+void ATeamFlagBase::OnCharacterOverlap(ACTFTaskCharacter* CTFTaskCharacter)
+{
+	if (bIsPermanent)
+	{
+		SetFlagAvailability(!(CTFTaskCharacter->TaskPlayerState->bIsTeamBlue != bIsBlueTeamBase));
+		CTFTaskCharacter->SetFlagVisibility(bIsBlueTeamBase);
+		return;
+	}
+	SetActorHiddenInGame(true);
+	BoxComponent->SetGenerateOverlapEvents(false);
+	if (CTFTaskCharacter->TaskPlayerState->bIsTeamBlue != bIsBlueTeamBase)
+	{
+		CTFTaskCharacter->SetFlagVisibility(bIsBlueTeamBase);
+		return;
+	}
+	
+	if (bIsBlueTeamBase)
+	{
+		TaskGameModeGameplay->BlueTeamFlagBase->SetFlagAvailability(true);
+		return;
+	}
+	
+	TaskGameModeGameplay->RedTeamFlagBase->SetFlagAvailability(true);
+}
 
 void ATeamFlagBase::OnComponentBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-                                            UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+                                            UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep,
+                                            const FHitResult& SweepResult)
 {
-	UE_LOG(LogTemp,Warning,TEXT("OnComponentBeginOverlap"));
-	if(OtherActor != nullptr && bIsFlagOnTheBase)
+	if (OtherActor != nullptr && bIsFlagOnTheBase)
 	{
-		UE_LOG(LogTemp,Warning,TEXT("OtherActor"));
-		if(ACTFTaskCharacter* CTFTaskCharacter  = Cast<ACTFTaskCharacter>(OtherActor) )
+		if (ACTFTaskCharacter* CTFTaskCharacter = Cast<ACTFTaskCharacter>(OtherActor))
 		{
-			UE_LOG(LogTemp,Warning,TEXT("CTFTaskCharacter :::"));
-			if((CTFTaskCharacter->GetLocalRole() == ROLE_Authority || CTFTaskCharacter->GetLocalRole() == ROLE_SimulatedProxy))
+			if (CTFTaskCharacter->TaskPlayerState->CurrentHealth > 0)
 			{
-					if(CTFTaskCharacter->TaskPlayerState != nullptr && CTFTaskCharacter->TaskPlayerState->bIsTeamBlue != bIsBlueTeamBase)
-					{
-						UE_LOG(LogTemp,Warning,TEXT("Player color:::%d::: Base Color:::%d"),CTFTaskCharacter->TaskPlayerState->bIsTeamBlue , bIsBlueTeamBase);
-
-						FlagMesh->SetVisibility(false);
-					}
-					CTFTaskCharacter->SetFlagVisibility(bIsBlueTeamBase);
-
+				OnCharacterOverlap(CTFTaskCharacter);
 			}
-			
 		}
 	}
 }
-// void ATeamFlagBase::BaseFlagChangeVisibility_Implementation(const bool bIsVisibility)
-// {
-// //	FlagMesh->SetVisibility(false);
-// }
-// void ATeamFlagBase::PlayerFlagChangeVisibility_Implementation(ACTFTaskCharacter* TaskCharacter,const bool bIsVisibility)
-// {
-// 	TaskCharacter->SetFlagVisibility(bIsBlueFlagBase);
-//
-// }
 
-
-
-
-
-
+void ATeamFlagBase::SetFlagAvailability(const bool bIsAvailable)
+{
+	FlagMesh->SetVisibility(bIsAvailable);
+	bIsFlagOnTheBase = bIsAvailable;
+}

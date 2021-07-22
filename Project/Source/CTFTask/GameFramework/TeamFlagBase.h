@@ -13,29 +13,33 @@ UCLASS()
 class CTFTASK_API ATeamFlagBase : public AActor
 {
 	GENERATED_BODY()
-	
-public:
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly , Category="Flag" )
-	UBoxComponent* BoxComponent;
-	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly , Category="Flag" )
-	UStaticMeshComponent* FlagMesh;
-	// Sets default values for this actor's properties
-	ATeamFlagBase();
-	UFUNCTION(BlueprintCallable , Category="Overlap")
-	void OnComponentBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) ;
-protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly , Category="Flag")
+public:
+	ATeamFlagBase();
+protected:
+	virtual void BeginPlay() override;
+public:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Flag")
+	UBoxComponent* BoxComponent;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Flag")
+	UStaticMeshComponent* FlagMesh;
+	UPROPERTY()
+	class ATaskGameModeGameplay* TaskGameModeGameplay;
+	UFUNCTION(BlueprintCallable, Category="Overlap")
+	void OnComponentBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+	                             UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep,
+	                             const FHitResult& SweepResult);
+	UFUNCTION()
+	void SetFlagAvailability(bool bIsAvailable);
+	UFUNCTION()
+	void ResetFlagBase();
+	UFUNCTION()
+	void OnCharacterOverlap(ACTFTaskCharacter* CTFTaskCharacter);
+public:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Flag")
 	bool bIsBlueTeamBase = true;
-	//UFUNCTION(Server , Reliable ,Category="Falg")
-	//void PlayerFlagChangeVisibility(ACTFTaskCharacter* TaskCharacter,const bool bIsVisibility);
-	public:
-	UPROPERTY(/*ReplicatedUsing=OnRep_UpdateFlagOnTheBase, BlueprintReadOnly , Category="Flag"*/)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Flag")
 	bool bIsFlagOnTheBase = true;
-	//UFUNCTION()
-	//void OnRep_UpdateFlagOnTheBase();
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Flag")
+	bool bIsPermanent;
 };

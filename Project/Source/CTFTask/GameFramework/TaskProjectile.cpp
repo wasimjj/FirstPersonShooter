@@ -40,19 +40,19 @@ ACTFTaskProjectile::ACTFTaskProjectile()
 void ACTFTaskProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
 	// Only add impulse and destroy projectile if we hit a physics
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, "OnHit from c++  && OtherComp->IsSimulatingPhysics()");
 	if ((OtherActor != NULL) && (OtherActor != this) && (OtherComp != NULL) )
 	{
 		OtherComp->AddImpulseAtLocation(GetVelocity() * 100.0f, GetActorLocation());
 		if(APawn* Pawn = GetInstigator())
 		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, "OnHit from c++");
 			UGameplayStatics::ApplyPointDamage(OtherActor, DamageValue, NormalImpulse, Hit, Pawn->Controller, this, DamageType);
 
 		}
 		Destroy();
 	}
 }
+
+
 
 
 void ACTFTaskProjectile::Destroyed()

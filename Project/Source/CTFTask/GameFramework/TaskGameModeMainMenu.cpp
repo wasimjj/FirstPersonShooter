@@ -50,11 +50,8 @@ void ATaskGameModeMainMenu::OnFindSessionsComplete(const bool bSuccess)
 	if (bSuccess && OnlineSessionSearch != nullptr)
 	{
 		TArray<FOnlineSessionSearchResult> OnlineSessionSearchResults = OnlineSessionSearch->SearchResults;
-		UE_LOG(LogTemp, Warning, TEXT("Total Session Found:::%d ::: "), OnlineSessionSearchResults.Num());
 		if (OnlineSessionSearchResults.Num() > 0)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Total Session Found:::%s ::: "),
-			       *OnlineSessionSearchResults[0].Session.GetSessionIdStr());
 			TArray<FServerInfo> ServerList;
 			for(int Index = 0 ; Index < OnlineSessionSearchResults.Num() ; Index++)
 			{
@@ -81,6 +78,11 @@ void ATaskGameModeMainMenu::OnJoinSessionComplete(FName SessionName, EOnJoinSess
 	}
 }
 
+void ATaskGameModeMainMenu::OnRegisterSessionComplete(FName SessionName,
+	const TArray<TSharedRef<const FUniqueNetId>>& ListOfPlayers, bool bSuccess)
+{
+}
+
 void ATaskGameModeMainMenu::CreateServer(const FString ServerName)
 {
 	UE_LOG(LogTemp,Warning,TEXT ("Create server.."));
@@ -94,14 +96,6 @@ void ATaskGameModeMainMenu::CreateServer(const FString ServerName)
 	OnlineSessionSettings.Set("ServerName",ServerName,EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
 	OnlineSessionPtr->CreateSession(0, FName(ServerName), OnlineSessionSettings);
 }
-
-// void ATaskGameModeMainMenu::JoinServer(const FString ServerName)
-// {
-// 	if (OnlineSessionPtr != nullptr && OnlineSessionSearch != nullptr && OnlineSessionSearch->SearchResults.Num() > 0)
-// 	{
-// 		OnlineSessionPtr->JoinSession(0, "Test Session", OnlineSessionSearch->SearchResults[0]);
-// 	}
-// }
 void ATaskGameModeMainMenu::JoinServer(const FName ServerName , const int SessionIndex)
 {
 	if (OnlineSessionPtr != nullptr && OnlineSessionSearch != nullptr && OnlineSessionSearch->SearchResults.Num() > 0)
@@ -121,11 +115,3 @@ void ATaskGameModeMainMenu::FindServer()
 	OnlineSessionPtr->FindSessions(0, OnlineSessionSearch.ToSharedRef());
 }
 
-TArray<FString> ATaskGameModeMainMenu::GetServers()
-{
-	if(OnlineSessionSearch!=nullptr)
-	{
-		return TArray<FString>{"Server 1 ", "Server2"};
-	}
-	return TArray<FString>{"Server 1 ", "Server2"};
-}

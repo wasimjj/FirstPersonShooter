@@ -11,7 +11,7 @@
 #include "TaskCharacter.generated.h"
 
 class UInputComponent;
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCaptureFlagStatusUpdateDelegate, bool, bIsCapture);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnStateInitializeDelegate);
 
 UCLASS(config=Game)
 class ACTFTaskCharacter : public ACharacter
@@ -66,6 +66,8 @@ public:
 
 protected:
 	virtual void BeginPlay();
+
+	//void OnStartGame();
 	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator,
 	                         AActor* DamageCauser) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
@@ -96,7 +98,11 @@ public:
 	/** AnimMontage to play each time we fire */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
 	class UAnimMontage* FireAnimation;
-
+	/** AnimMontage to play each time we fire */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
+	class UAnimMontage* HitReactMontage;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
+	class UAnimMontage* DeathMontage;
 	/** Whether to use motion controller location for aiming. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
 	uint32 bUsingMotionControllers : 1;
@@ -179,38 +185,41 @@ protected:
 	void CorrectRotationMulticast(FRotator Rotator);
 	UFUNCTION(BlueprintCallable, Category="Rotation")
 	void CorrectRotationMulticast_Implementation(FRotator Rotator);
-protected:
-	UPROPERTY(EditDefaultsOnly, Category = "Health")
-	float MaxHealth;
-
-	UPROPERTY(ReplicatedUsing=OnRep_CurrentHealth)
-	float CurrentHealth;
-
-	UFUNCTION()
-	void OnRep_CurrentHealth();
-	void OnHealthUpdate();
 public:
-	UFUNCTION(BlueprintPure, Category="Health")
-	FORCEINLINE float GetMaxHealth() const { return MaxHealth; }
+	UFUNCTION()
+	void PlayDeathAnimation();
+protected:
+	UPROPERTY()
+	class ATaskGameModeGameplay* TaskGameModeGameplay;
+	UPROPERTY()
+	class ATaskGameStateBase* TaskGameStateBase;
+	UPROPERTY()
+	UAnimInstance* AnimInstanceSelf;
+	UPROPERTY()
+	UAnimInstance* AnimInstanceEnemy;
 
-	UFUNCTION(BlueprintPure, Category="Health")
-	FORCEINLINE float GetCurrentHealth() const { return CurrentHealth; }
-
+public:
 	UFUNCTION(BlueprintCallable, Category="Health")
 	void SetCurrentHealth(float HealthValue);
-	UFUNCTION(BlueprintCallable , Category="Flag")
+	UFUNCTION(BlueprintCallable, Category="Flag")
 	void SetFlagVisibility(const bool bIsBaseBlue);
-	UFUNCTION(Server , Reliable )
+	UFUNCTION(Server, Reliable)
 	void PlayerStateSetupInternal(FPlayerDataStruct PlayerDataStruct);
-	UFUNCTION(BlueprintCallable , Category="PlayerState")
+	UFUNCTION(BlueprintCallable, Category="PlayerState")
 	void PlayerStateSetup();
+	UFUNCTION()
+	FVector GetLocationNearMyBase();
+	UFUNCTION()
+	void ReSpawnMe();
+	UFUNCTION()
+	void CheckIfCarryingFlag();
+	UFUNCTION()
+	void OnGameStart();
+
 
 public:
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category="PlayerState")
 	ATaskPlayerState* TaskPlayerState;
-	UPROPERTY(BlueprintAssignable, Category="Flag")
-	FCaptureFlagStatusUpdateDelegate CaptureFlagStatusUpdateDelegate;
-	UPROPERTY(BlueprintReadOnly , Category="Flag")
-	bool bIsFlagCaptured;
+	UPROPERTY(BlueprintAssignable, Category="State Delegate")
+	FOnStateInitializeDelegate OnStateInitializeDelegate;
 };
-
